@@ -15,4 +15,7 @@ export * from './sarif-input';
 export * from './signals/index';
 export * from './scorer';
 export * from './analyze';
+export * from './gaming';
+export * from './trend';
+export * from './branches';
 export * from './reporters/index';

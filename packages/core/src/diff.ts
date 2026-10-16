@@ -92,7 +92,7 @@ export function parseUnifiedDiff(text: string): ChangedFile[] {
   return files;
 }
 
-function defaultBranch(repoRoot: string): string | undefined {
+export function defaultBranch(repoRoot: string): string | undefined {
   const originHead = tryGit(repoRoot, ['symbolic-ref', '--short', 'refs/remotes/origin/HEAD'])?.trim();
   if (originHead) return originHead;
   for (const b of ['main', 'master', 'origin/main', 'origin/master']) {
@@ -101,20 +101,36 @@ function defaultBranch(repoRoot: string): string | undefined {
   return undefined;
 }
 
+/** Checkout advice that only makes sense inside GitHub Actions. */
+export function ciHint(): string {
+  return process.env.GITHUB_ACTIONS === 'true' ? ' In GitHub Actions use actions/checkout with fetch-depth: 0.' : '';
+}
+
+function headCommit(repoRoot: string): string {
+  const sha = tryGit(repoRoot, ['rev-parse', '--verify', '--quiet', 'HEAD^{commit}'])?.trim();
+  if (!sha) throw new RadarError('NO_COMMITS', 'No commits yet: nothing to review.');
+  return sha;
+}
+
 function resolveCommit(repoRoot: string, ref: string, role: 'base' | 'head'): string {
   const sha = tryGit(repoRoot, ['rev-parse', '--verify', '--quiet', `${ref}^{commit}`])?.trim();
   if (!sha) {
     throw new RadarError(
       role === 'base' ? 'BASE_NOT_FOUND' : 'BAD_INPUT',
-      `Cannot find ${role} commit "${ref}". In GitHub Actions use actions/checkout with fetch-depth: 0.`,
+      `Cannot find ${role} commit "${ref}".${ciHint()}`,
     );
   }
   return sha;
 }
 
+/** Changes a commit would record: 'index' = staged only (`git commit`); 'all' = every tracked edit plus untracked files (`git commit -a`, or after a chained `git add`). */
+export type StagedMode = 'index' | 'all';
+
 export interface ChangeSetOptions {
   /** With no range: diff the merge-base against the files on disk, including untracked files. */
   workingTree?: boolean;
+  /** Diff against HEAD instead of the merge-base. Wins over workingTree; can't be combined with a range. */
+  staged?: StagedMode;
 }
 
 const MAX_UNTRACKED_BYTES = 1024 * 1024; // bigger untracked files are treated like binaries
@@ -145,6 +161,13 @@ export function getChangeSet(repoRoot: string, rangeArg?: string, opts: ChangeSe
   if (!tryGit(repoRoot, ['rev-parse', '--is-inside-work-tree'])) {
     throw new RadarError('NOT_A_REPO', `${repoRoot} is not inside a git repository.`);
   }
+  if (opts.staged) {
+    if (rangeArg) throw new RadarError('BAD_INPUT', "--staged can't be combined with a range.");
+    const head = headCommit(repoRoot);
+    const args = ['diff', '--no-color', '--no-ext-diff', '-U0', '-M'];
+    const files = parseUnifiedDiff(git(repoRoot, opts.staged === 'index' ? [...args, '--cached', head] : [...args, head]));
+    return { base: head, head, files: opts.staged === 'all' ? [...files, ...untrackedFiles(repoRoot)] : files };
+  }
   let base: string;
   let head: string;
   if (rangeArg) {
@@ -155,15 +178,15 @@ export function getChangeSet(repoRoot: string, rangeArg?: string, opts: ChangeSe
     if (rangeArg.includes('...')) {
       // git's A...B: diff from the merge-base, so later commits on A don't show up as reversed changes
       const mb = tryGit(repoRoot, ['merge-base', base, head])?.trim();
-      if (!mb) throw new RadarError('BASE_NOT_FOUND', `No merge-base for ${rangeArg}. In GitHub Actions use actions/checkout with fetch-depth: 0.`);
+      if (!mb) throw new RadarError('BASE_NOT_FOUND', `No merge-base for ${rangeArg}.${ciHint()}`);
       base = mb;
     }
   } else {
-    head = resolveCommit(repoRoot, 'HEAD', 'head');
+    head = headCommit(repoRoot);
     const branch = defaultBranch(repoRoot);
-    if (!branch) throw new RadarError('BASE_NOT_FOUND', 'No default branch found. Pass an explicit range like main..HEAD. In GitHub Actions use fetch-depth: 0.');
+    if (!branch) throw new RadarError('BASE_NOT_FOUND', `No default branch found. Pass an explicit range like main..HEAD.${ciHint()}`);
     const mb = tryGit(repoRoot, ['merge-base', branch, head])?.trim();
-    if (!mb) throw new RadarError('BASE_NOT_FOUND', `No merge-base between ${branch} and HEAD. In GitHub Actions use actions/checkout with fetch-depth: 0.`);
+    if (!mb) throw new RadarError('BASE_NOT_FOUND', `No merge-base between ${branch} and HEAD.${ciHint()}`);
     base = mb;
   }
   if (!rangeArg && opts.workingTree) {

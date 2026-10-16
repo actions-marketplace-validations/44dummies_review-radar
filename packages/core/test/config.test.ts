@@ -4,6 +4,19 @@ import { RadarError } from '../src/errors';
 import { makeRepo } from './helpers/repo';
 
 describe('config', () => {
+  it('defaults agentHooks.preCommit to warn', () => {
+    expect(loadConfig(makeRepo().root).agentHooks).toEqual({ preCommit: 'warn' });
+  });
+  it.each(['warn', 'block', 'off'])('accepts agentHooks.preCommit: %s', (mode) => {
+    const r = makeRepo();
+    r.write({ '.reviewradar.yml': `agentHooks:\n  preCommit: ${mode}\n` });
+    expect(loadConfig(r.root).agentHooks.preCommit).toBe(mode);
+  });
+  it('rejects any other agentHooks.preCommit value', () => {
+    const r = makeRepo();
+    r.write({ '.reviewradar.yml': 'agentHooks:\n  preCommit: maybe\n' });
+    expect(() => loadConfig(r.root)).toThrow(/agentHooks\.preCommit must be warn, block or off/);
+  });
   it('returns defaults when no file exists', () => {
     const r = makeRepo();
     expect(loadConfig(r.root)).toEqual(DEFAULT_CONFIG);

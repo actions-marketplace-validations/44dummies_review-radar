@@ -33780,12 +33780,20 @@ function defaultBranch(repoRoot) {
   }
   return void 0;
 }
+function ciHint() {
+  return process.env.GITHUB_ACTIONS === "true" ? " In GitHub Actions use actions/checkout with fetch-depth: 0." : "";
+}
+function headCommit(repoRoot) {
+  const sha = tryGit(repoRoot, ["rev-parse", "--verify", "--quiet", "HEAD^{commit}"])?.trim();
+  if (!sha) throw new RadarError("NO_COMMITS", "No commits yet: nothing to review.");
+  return sha;
+}
 function resolveCommit(repoRoot, ref, role) {
   const sha = tryGit(repoRoot, ["rev-parse", "--verify", "--quiet", `${ref}^{commit}`])?.trim();
   if (!sha) {
     throw new RadarError(
       role === "base" ? "BASE_NOT_FOUND" : "BAD_INPUT",
-      `Cannot find ${role} commit "${ref}". In GitHub Actions use actions/checkout with fetch-depth: 0.`
+      `Cannot find ${role} commit "${ref}".${ciHint()}`
     );
   }
   return sha;
@@ -33819,6 +33827,13 @@ function getChangeSet(repoRoot, rangeArg, opts = {}) {
   if (!tryGit(repoRoot, ["rev-parse", "--is-inside-work-tree"])) {
     throw new RadarError("NOT_A_REPO", `${repoRoot} is not inside a git repository.`);
   }
+  if (opts.staged) {
+    if (rangeArg) throw new RadarError("BAD_INPUT", "--staged can't be combined with a range.");
+    const head2 = headCommit(repoRoot);
+    const args2 = ["diff", "--no-color", "--no-ext-diff", "-U0", "-M"];
+    const files = parseUnifiedDiff(git(repoRoot, opts.staged === "index" ? [...args2, "--cached", head2] : [...args2, head2]));
+    return { base: head2, head: head2, files: opts.staged === "all" ? [...files, ...untrackedFiles(repoRoot)] : files };
+  }
   let base;
   let head;
   if (rangeArg) {
@@ -33828,15 +33843,15 @@ function getChangeSet(repoRoot, rangeArg, opts = {}) {
     head = resolveCommit(repoRoot, parts2[1] || "HEAD", "head");
     if (rangeArg.includes("...")) {
       const mb = tryGit(repoRoot, ["merge-base", base, head])?.trim();
-      if (!mb) throw new RadarError("BASE_NOT_FOUND", `No merge-base for ${rangeArg}. In GitHub Actions use actions/checkout with fetch-depth: 0.`);
+      if (!mb) throw new RadarError("BASE_NOT_FOUND", `No merge-base for ${rangeArg}.${ciHint()}`);
       base = mb;
     }
   } else {
-    head = resolveCommit(repoRoot, "HEAD", "head");
+    head = headCommit(repoRoot);
     const branch = defaultBranch(repoRoot);
-    if (!branch) throw new RadarError("BASE_NOT_FOUND", "No default branch found. Pass an explicit range like main..HEAD. In GitHub Actions use fetch-depth: 0.");
+    if (!branch) throw new RadarError("BASE_NOT_FOUND", `No default branch found. Pass an explicit range like main..HEAD.${ciHint()}`);
     const mb = tryGit(repoRoot, ["merge-base", branch, head])?.trim();
-    if (!mb) throw new RadarError("BASE_NOT_FOUND", `No merge-base between ${branch} and HEAD. In GitHub Actions use actions/checkout with fetch-depth: 0.`);
+    if (!mb) throw new RadarError("BASE_NOT_FOUND", `No merge-base between ${branch} and HEAD.${ciHint()}`);
     base = mb;
   }
   if (!rangeArg && opts.workingTree) {
@@ -33920,8 +33935,10 @@ var DEFAULT_CONFIG = {
   ],
   ignore: ["**/dist/**", "**/build/**", "**/vendor/**", "**/*.min.js", "dist/**", "build/**", "vendor/**"],
   churnDays: 90,
-  diffusion: { files: 10, dirs: 5 }
+  diffusion: { files: 10, dirs: 5 },
+  agentHooks: { preCommit: "warn" }
 };
+var PRE_COMMIT_MODES = ["warn", "block", "off"];
 function loadConfig(repoRoot, configPath) {
   const p = configPath ? isAbsolute(configPath) ? configPath : join2(repoRoot, configPath) : join2(repoRoot, ".reviewradar.yml");
   if (!existsSync3(p)) {
@@ -33935,6 +33952,10 @@ function loadConfig(repoRoot, configPath) {
     throw new RadarError("BAD_INPUT", `Invalid YAML in ${p}: ${e.message}`);
   }
   const d = structuredClone(DEFAULT_CONFIG);
+  const preCommit = raw.agentHooks?.preCommit ?? d.agentHooks.preCommit;
+  if (!PRE_COMMIT_MODES.includes(preCommit)) {
+    throw new RadarError("BAD_INPUT", `agentHooks.preCommit must be warn, block or off (got "${String(preCommit)}") in ${p}`);
+  }
   return {
     weights: { ...d.weights, ...raw.weights ?? {} },
     tiers: { ...d.tiers, ...raw.tiers ?? {} },
@@ -33942,7 +33963,8 @@ function loadConfig(repoRoot, configPath) {
     sensitiveCode: [...d.sensitiveCode, ...raw.sensitiveCode ?? []],
     ignore: [...d.ignore, ...raw.ignore ?? []],
     churnDays: raw.churnDays ?? d.churnDays,
-    diffusion: { ...d.diffusion, ...raw.diffusion ?? {} }
+    diffusion: { ...d.diffusion, ...raw.diffusion ?? {} },
+    agentHooks: { preCommit }
   };
 }
 var matcherCache = /* @__PURE__ */ new WeakMap();
@@ -38669,7 +38691,7 @@ function summarize(risks, skippedFiles) {
 // packages/core/src/analyze.ts
 import { existsSync as existsSync6, readFileSync as readFileSync5 } from "node:fs";
 import { isAbsolute as isAbsolute3, join as join5 } from "node:path";
-var VERSION7 = "1.1.0";
+var VERSION7 = "1.2.0";
 var abs = (root, p) => isAbsolute3(p) ? p : join5(root, p);
 function readInput(root, p, kind) {
   const full = abs(root, p);
@@ -38679,7 +38701,7 @@ function readInput(root, p, kind) {
 async function analyze(opts) {
   const { repoRoot } = opts;
   const config = loadConfig(repoRoot, opts.configPath);
-  const raw = getChangeSet(repoRoot, opts.range, { workingTree: opts.workingTree });
+  const raw = getChangeSet(repoRoot, opts.range, { workingTree: opts.workingTree, staged: opts.staged });
   const warnings = [];
   const skippedFiles = raw.files.filter((f) => f.binary && !isIgnored(f.path, config)).map((f) => f.path);
   const changeSet = { ...raw, files: raw.files.filter((f) => !f.binary && !isIgnored(f.path, config)) };
@@ -38694,7 +38716,7 @@ async function analyze(opts) {
   const lcov = opts.lcovPath ? parseLcov(readInput(repoRoot, opts.lcovPath, "LCOV"), repoRoot) : void 0;
   let importGraph;
   try {
-    importGraph = await buildImportGraph(repoRoot, raw.head, { useCache: opts.useCache ?? true });
+    importGraph = await buildImportGraph(repoRoot, opts.importGraphFrom ?? raw.head, { useCache: opts.useCache ?? true });
   } catch (e) {
     warnings.push(`import graph unavailable: ${e.message}`);
     importGraph = { importedBy: () => [], importsOf: () => [] };

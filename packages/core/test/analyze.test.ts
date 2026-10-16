@@ -27,7 +27,7 @@ describe('analyze', () => {
     expect(map.hunks.map((h) => h.hunk.file)).toContain('src/auth/session.ts');
     expect(map.hunks.find((h) => h.hunk.file === 'README.md')!.tier).toBe('P2');
     expect(map.meta.aiAuthored.likely).toBe(true);
-    expect(map.meta.version).toBe('1.1.0');
+    expect(map.meta.version).toBe('1.2.0');
     expect(map.summary.hunks).toBe(map.hunks.length);
   });
 
@@ -98,5 +98,15 @@ describe('analyze workingTree', () => {
     expect(map.hunks[0]!.tier).toBe('P0');
     const aHunk = map.hunks.find((h) => h.hunk.file === 'src/a.ts')!;
     expect(aHunk.evidence.map((e) => e.signal)).not.toContain('untested-change');
+  });
+  it('staged: index scores only staged changes', async () => {
+    const r = makeRepo();
+    r.write({ 'src/a.test.ts': "it('a', () => {});\n", 'src/b.test.ts': "it('b', () => {});\n" });
+    r.commit('init');
+    r.write({ 'src/a.test.ts': "it.skip('a', () => {});\n", 'src/b.test.ts': "it.skip('b', () => {});\n" });
+    r.git('add', 'src/a.test.ts');
+    const map = await analyze({ repoRoot: r.root, staged: 'index' });
+    expect(map.hunks.map((h) => h.hunk.file)).toEqual(['src/a.test.ts']);
+    expect(map.hunks[0]!.tier).toBe('P0');
   });
 });

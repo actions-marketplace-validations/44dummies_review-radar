@@ -1,0 +1,14 @@
+{
+  "name": "review-radar",
+  "version": "1.2.0",
+  "description": "Before you open a PR, see which hunks a reviewer must read and why. Catches agents skipping or weakening tests. Deterministic, offline, no LLM.",
+  "author": { "name": "44dummies", "url": "https://github.com/44dummies" },
+  "homepage": "https://github.com/44dummies/review-radar",
+  "repository": "https://github.com/44dummies/review-radar",
+  "license": "MIT",
+  "keywords": ["code-review", "pull-request", "mcp", "test-gaming", "risk"],
+  "skills": "./skills/",
+  "mcpServers": "./.codex-plugin/mcp.json",
+  "hooks": "./.codex-plugin/hooks.json",
+  "interface": { "displayName": "Review Radar", "category": "Coding" }
+}

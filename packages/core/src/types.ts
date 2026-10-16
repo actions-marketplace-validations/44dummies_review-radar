@@ -102,6 +102,8 @@ export interface Weights {
   sarifNote: number;
 }
 
+export type PreCommitMode = 'warn' | 'block' | 'off';
+
 export interface Config {
   weights: Weights;
   tiers: { p0: number; p1: number };
@@ -110,6 +112,7 @@ export interface Config {
   ignore: string[];           // picomatch globs
   churnDays: number;
   diffusion: { files: number; dirs: number };
+  agentHooks: { preCommit: PreCommitMode };  // Claude Code commit hook
 }
 
 export interface Context {

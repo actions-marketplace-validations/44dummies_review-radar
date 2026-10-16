@@ -1685,7 +1685,7 @@ var require_log = __commonJS({
       if (logLevel === "debug")
         console.log(...messages);
     }
-    function warn(logLevel, warning) {
+    function warn2(logLevel, warning) {
       if (logLevel === "debug" || logLevel === "warn") {
         if (typeof node_process.emitWarning === "function")
           node_process.emitWarning(warning);
@@ -1694,7 +1694,7 @@ var require_log = __commonJS({
       }
     }
     exports.debug = debug;
-    exports.warn = warn;
+    exports.warn = warn2;
   }
 });
 
@@ -3130,9 +3130,9 @@ var require_timestamp = __commonJS({
         const match = str.match(timestamp.test);
         if (!match)
           throw new Error("!!timestamp expects a date, starting with yyyy-mm-dd");
-        const [, year, month, day, hour, minute, second] = match.map(Number);
+        const [, year, month, day2, hour, minute, second] = match.map(Number);
         const millisec = match[7] ? Number((match[7] + "00").substr(1, 3)) : 0;
-        let date4 = Date.UTC(year, month - 1, day, hour || 0, minute || 0, second || 0, millisec);
+        let date4 = Date.UTC(year, month - 1, day2, hour || 0, minute || 0, second || 0, millisec);
         const tz = match[8];
         if (tz && tz !== "Z") {
           let d = parseSexagesimal(tz, false);
@@ -8080,8 +8080,8 @@ var require_parse = __commonJS({
       }
       return value.replace(/\\(.)/g, "$1");
     };
-    var hasRepeatedCharPrefixOverlap = (branches) => {
-      const values = branches.map(normalizeSimpleBranch).filter(Boolean);
+    var hasRepeatedCharPrefixOverlap = (branches2) => {
+      const values = branches2.map(normalizeSimpleBranch).filter(Boolean);
       for (let i2 = 0; i2 < values.length; i2++) {
         for (let j = i2 + 1; j < values.length; j++) {
           const a = values[i2];
@@ -8164,11 +8164,11 @@ var require_parse = __commonJS({
         if (!match || match.type !== "*") {
           return;
         }
-        const branches = splitTopLevel(match.body).map((branch2) => branch2.trim());
-        if (branches.length !== 1) {
+        const branches2 = splitTopLevel(match.body).map((branch2) => branch2.trim());
+        if (branches2.length !== 1) {
           return;
         }
-        const branch = normalizeSimpleBranch(branches[0]);
+        const branch = normalizeSimpleBranch(branches2[0]);
         if (!branch || branch.length !== 1) {
           return;
         }
@@ -8196,16 +8196,16 @@ var require_parse = __commonJS({
         return { risky: false };
       }
       const max = typeof options.maxExtglobRecursion === "number" ? options.maxExtglobRecursion : constants.DEFAULT_MAX_EXTGLOB_RECURSION;
-      const branches = splitTopLevel(body2).map((branch) => branch.trim());
-      if (branches.length > 1) {
-        if (branches.some((branch) => branch === "") || branches.some((branch) => /^[*?]+$/.test(branch)) || hasRepeatedCharPrefixOverlap(branches)) {
+      const branches2 = splitTopLevel(body2).map((branch) => branch.trim());
+      if (branches2.length > 1) {
+        if (branches2.some((branch) => branch === "") || branches2.some((branch) => /^[*?]+$/.test(branch)) || hasRepeatedCharPrefixOverlap(branches2)) {
           return { risky: true };
         }
       }
       const safeChars = [];
       let sawStarSequence = false;
       let combinable = true;
-      for (const branch of branches) {
+      for (const branch of branches2) {
         const chars = getStarExtglobSequenceChars(branch);
         if (chars) {
           sawStarSequence = true;
@@ -9220,8 +9220,8 @@ var require_picocolors = __commonJS({
 
 // packages/cli/src/cli.ts
 import { parseArgs } from "node:util";
-import { realpathSync, writeFileSync as writeFileSync2 } from "node:fs";
-import { isAbsolute as isAbsolute4, join as join6 } from "node:path";
+import { realpathSync, writeFileSync as writeFileSync3 } from "node:fs";
+import { isAbsolute as isAbsolute5, join as join7 } from "node:path";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
 
 // packages/core/src/types.ts
@@ -9397,12 +9397,20 @@ function defaultBranch(repoRoot2) {
   }
   return void 0;
 }
+function ciHint() {
+  return process.env.GITHUB_ACTIONS === "true" ? " In GitHub Actions use actions/checkout with fetch-depth: 0." : "";
+}
+function headCommit(repoRoot2) {
+  const sha = tryGit(repoRoot2, ["rev-parse", "--verify", "--quiet", "HEAD^{commit}"])?.trim();
+  if (!sha) throw new RadarError("NO_COMMITS", "No commits yet: nothing to review.");
+  return sha;
+}
 function resolveCommit(repoRoot2, ref, role) {
   const sha = tryGit(repoRoot2, ["rev-parse", "--verify", "--quiet", `${ref}^{commit}`])?.trim();
   if (!sha) {
     throw new RadarError(
       role === "base" ? "BASE_NOT_FOUND" : "BAD_INPUT",
-      `Cannot find ${role} commit "${ref}". In GitHub Actions use actions/checkout with fetch-depth: 0.`
+      `Cannot find ${role} commit "${ref}".${ciHint()}`
     );
   }
   return sha;
@@ -9436,6 +9444,13 @@ function getChangeSet(repoRoot2, rangeArg, opts = {}) {
   if (!tryGit(repoRoot2, ["rev-parse", "--is-inside-work-tree"])) {
     throw new RadarError("NOT_A_REPO", `${repoRoot2} is not inside a git repository.`);
   }
+  if (opts.staged) {
+    if (rangeArg) throw new RadarError("BAD_INPUT", "--staged can't be combined with a range.");
+    const head2 = headCommit(repoRoot2);
+    const args2 = ["diff", "--no-color", "--no-ext-diff", "-U0", "-M"];
+    const files = parseUnifiedDiff(git(repoRoot2, opts.staged === "index" ? [...args2, "--cached", head2] : [...args2, head2]));
+    return { base: head2, head: head2, files: opts.staged === "all" ? [...files, ...untrackedFiles(repoRoot2)] : files };
+  }
   let base;
   let head;
   if (rangeArg) {
@@ -9445,15 +9460,15 @@ function getChangeSet(repoRoot2, rangeArg, opts = {}) {
     head = resolveCommit(repoRoot2, parts2[1] || "HEAD", "head");
     if (rangeArg.includes("...")) {
       const mb = tryGit(repoRoot2, ["merge-base", base, head])?.trim();
-      if (!mb) throw new RadarError("BASE_NOT_FOUND", `No merge-base for ${rangeArg}. In GitHub Actions use actions/checkout with fetch-depth: 0.`);
+      if (!mb) throw new RadarError("BASE_NOT_FOUND", `No merge-base for ${rangeArg}.${ciHint()}`);
       base = mb;
     }
   } else {
-    head = resolveCommit(repoRoot2, "HEAD", "head");
+    head = headCommit(repoRoot2);
     const branch = defaultBranch(repoRoot2);
-    if (!branch) throw new RadarError("BASE_NOT_FOUND", "No default branch found. Pass an explicit range like main..HEAD. In GitHub Actions use fetch-depth: 0.");
+    if (!branch) throw new RadarError("BASE_NOT_FOUND", `No default branch found. Pass an explicit range like main..HEAD.${ciHint()}`);
     const mb = tryGit(repoRoot2, ["merge-base", branch, head])?.trim();
-    if (!mb) throw new RadarError("BASE_NOT_FOUND", `No merge-base between ${branch} and HEAD. In GitHub Actions use actions/checkout with fetch-depth: 0.`);
+    if (!mb) throw new RadarError("BASE_NOT_FOUND", `No merge-base between ${branch} and HEAD.${ciHint()}`);
     base = mb;
   }
   if (!rangeArg && opts.workingTree) {
@@ -9537,8 +9552,10 @@ var DEFAULT_CONFIG = {
   ],
   ignore: ["**/dist/**", "**/build/**", "**/vendor/**", "**/*.min.js", "dist/**", "build/**", "vendor/**"],
   churnDays: 90,
-  diffusion: { files: 10, dirs: 5 }
+  diffusion: { files: 10, dirs: 5 },
+  agentHooks: { preCommit: "warn" }
 };
+var PRE_COMMIT_MODES = ["warn", "block", "off"];
 function loadConfig(repoRoot2, configPath) {
   const p = configPath ? isAbsolute(configPath) ? configPath : join2(repoRoot2, configPath) : join2(repoRoot2, ".reviewradar.yml");
   if (!existsSync(p)) {
@@ -9552,6 +9569,10 @@ function loadConfig(repoRoot2, configPath) {
     throw new RadarError("BAD_INPUT", `Invalid YAML in ${p}: ${e.message}`);
   }
   const d = structuredClone(DEFAULT_CONFIG);
+  const preCommit2 = raw.agentHooks?.preCommit ?? d.agentHooks.preCommit;
+  if (!PRE_COMMIT_MODES.includes(preCommit2)) {
+    throw new RadarError("BAD_INPUT", `agentHooks.preCommit must be warn, block or off (got "${String(preCommit2)}") in ${p}`);
+  }
   return {
     weights: { ...d.weights, ...raw.weights ?? {} },
     tiers: { ...d.tiers, ...raw.tiers ?? {} },
@@ -9559,7 +9580,8 @@ function loadConfig(repoRoot2, configPath) {
     sensitiveCode: [...d.sensitiveCode, ...raw.sensitiveCode ?? []],
     ignore: [...d.ignore, ...raw.ignore ?? []],
     churnDays: raw.churnDays ?? d.churnDays,
-    diffusion: { ...d.diffusion, ...raw.diffusion ?? {} }
+    diffusion: { ...d.diffusion, ...raw.diffusion ?? {} },
+    agentHooks: { preCommit: preCommit2 }
   };
 }
 var matcherCache = /* @__PURE__ */ new WeakMap();
@@ -9665,14 +9687,14 @@ var Edit = class {
    * based on an edit operation. This is useful for editing points without
    * requiring a tree or node instance.
    */
-  editPoint(point, index) {
+  editPoint(point3, index) {
     let newIndex = index;
-    const newPoint = { ...point };
+    const newPoint = { ...point3 };
     if (index >= this.oldEndIndex) {
       newIndex = this.newEndIndex + (index - this.oldEndIndex);
-      const originalRow = point.row;
-      newPoint.row = this.newEndPosition.row + (point.row - this.oldEndPosition.row);
-      newPoint.column = originalRow === this.oldEndPosition.row ? this.newEndPosition.column + (point.column - this.oldEndPosition.column) : point.column;
+      const originalRow = point3.row;
+      newPoint.row = this.newEndPosition.row + (point3.row - this.oldEndPosition.row);
+      newPoint.column = originalRow === this.oldEndPosition.row ? this.newEndPosition.column + (point3.column - this.oldEndPosition.column) : point3.column;
     } else if (index > this.startIndex) {
       newIndex = this.newEndIndex;
       newPoint.row = this.newEndPosition.row;
@@ -9739,8 +9761,8 @@ function assertInternal(x) {
   if (x !== INTERNAL) throw new Error("Illegal constructor");
 }
 __name(assertInternal, "assertInternal");
-function isPoint(point) {
-  return !!point && typeof point.row === "number" && typeof point.column === "number";
+function isPoint(point3) {
+  return !!point3 && typeof point3.row === "number" && typeof point3.column === "number";
 }
 __name(isPoint, "isPoint");
 function setModule(module2) {
@@ -10882,9 +10904,9 @@ function unmarshalTreeCursor(cursor) {
   cursor[3] = C.getValue(TRANSFER_BUFFER + 3 * SIZE_OF_INT, "i32");
 }
 __name(unmarshalTreeCursor, "unmarshalTreeCursor");
-function marshalPoint(address, point) {
-  C.setValue(address, point.row, "i32");
-  C.setValue(address + SIZE_OF_INT, point.column, "i32");
+function marshalPoint(address, point3) {
+  C.setValue(address, point3.row, "i32");
+  C.setValue(address + SIZE_OF_INT, point3.column, "i32");
 }
 __name(marshalPoint, "marshalPoint");
 function unmarshalPoint(address) {
@@ -14286,7 +14308,7 @@ function summarize(risks, skippedFiles) {
 // packages/core/src/analyze.ts
 import { existsSync as existsSync4, readFileSync as readFileSync4 } from "node:fs";
 import { isAbsolute as isAbsolute3, join as join5 } from "node:path";
-var VERSION = "1.1.0";
+var VERSION = "1.2.0";
 var abs = (root, p) => isAbsolute3(p) ? p : join5(root, p);
 function readInput(root, p, kind) {
   const full = abs(root, p);
@@ -14296,7 +14318,7 @@ function readInput(root, p, kind) {
 async function analyze(opts) {
   const { repoRoot: repoRoot2 } = opts;
   const config2 = loadConfig(repoRoot2, opts.configPath);
-  const raw = getChangeSet(repoRoot2, opts.range, { workingTree: opts.workingTree });
+  const raw = getChangeSet(repoRoot2, opts.range, { workingTree: opts.workingTree, staged: opts.staged });
   const warnings = [];
   const skippedFiles = raw.files.filter((f) => f.binary && !isIgnored(f.path, config2)).map((f) => f.path);
   const changeSet = { ...raw, files: raw.files.filter((f) => !f.binary && !isIgnored(f.path, config2)) };
@@ -14311,7 +14333,7 @@ async function analyze(opts) {
   const lcov = opts.lcovPath ? parseLcov(readInput(repoRoot2, opts.lcovPath, "LCOV"), repoRoot2) : void 0;
   let importGraph;
   try {
-    importGraph = await buildImportGraph(repoRoot2, raw.head, { useCache: opts.useCache ?? true });
+    importGraph = await buildImportGraph(repoRoot2, opts.importGraphFrom ?? raw.head, { useCache: opts.useCache ?? true });
   } catch (e) {
     warnings.push(`import graph unavailable: ${e.message}`);
     importGraph = { importedBy: () => [], importsOf: () => [] };
@@ -14345,6 +14367,159 @@ async function analyze(opts) {
   }
   const risks = scoreHunks(hunks, evidence, config2);
   return { changeSet, hunks: risks, summary: summarize(risks, skippedFiles), meta: { version: VERSION, warnings, aiAuthored } };
+}
+
+// packages/core/src/gaming.ts
+function findTestGaming(repoRoot2, staged, config2 = loadConfig(repoRoot2)) {
+  const raw = getChangeSet(repoRoot2, void 0, { staged });
+  const changeSet = { ...raw, files: raw.files.filter((f) => !f.binary && !isIgnored(f.path, config2)) };
+  const ctx = {
+    repoRoot: repoRoot2,
+    changeSet,
+    config: config2,
+    sarif: [],
+    testFiles: [],
+    importGraph: { importedBy: () => [], importsOf: () => [] },
+    git: { churn: () => 0, shallow: false },
+    readFile: () => void 0
+  };
+  const hunks = new Map(changeSet.files.flatMap((f) => f.hunks).map((h) => [h.id, h]));
+  return testGamingSignal.run(ctx).flatMap((e) => {
+    const h = hunks.get(e.hunkId);
+    if (!h) return [];
+    const r = h.newRange.start ? h.newRange : h.oldRange;
+    return [{ file: h.file, startLine: r.start, endLine: r.end, ruleId: e.ruleId ?? e.signal, message: e.message }];
+  });
+}
+
+// packages/core/src/trend.ts
+import { appendFileSync, mkdirSync as mkdirSync2, readFileSync as readFileSync5, writeFileSync as writeFileSync2 } from "node:fs";
+import { dirname as dirname2, isAbsolute as isAbsolute4, join as join6 } from "node:path";
+var TREND_MAX_LINES = 1e3;
+function trendFile(repoRoot2) {
+  const p = git(repoRoot2, ["rev-parse", "--git-path", "review-radar/trend.jsonl"]).trim();
+  return isAbsolute4(p) ? p : join6(repoRoot2, p);
+}
+var pad = (n) => String(n).padStart(2, "0");
+var day = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+var hhmm = (d) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+var point = (r) => ({ t: r.t, p0: r.p0, p1: r.p1 });
+function readRecords(file) {
+  let text;
+  try {
+    text = readFileSync5(file, "utf8");
+  } catch {
+    return [];
+  }
+  const out2 = [];
+  for (const line of text.split("\n")) {
+    if (!line.trim()) continue;
+    try {
+      const r = JSON.parse(line);
+      if (typeof r.t === "string" && typeof r.p0 === "number" && typeof r.p1 === "number") out2.push(r);
+    } catch {
+    }
+  }
+  return out2;
+}
+function computeTrend(earlier, current, now) {
+  const last = earlier.at(-1);
+  if (!last) return void 0;
+  const todays = earlier.filter((r) => day(new Date(r.t)) === day(now));
+  const from = todays[0] ?? last;
+  const at = new Date(from.t);
+  const since = todays.length ? `since ${hhmm(at)} (${todays.length + 1} runs today)` : `since ${day(at)} ${hhmm(at)}`;
+  return {
+    line: `P0 ${from.p0} \u2192 ${current.p0} \xB7 P1 ${from.p1} \u2192 ${current.p1} ${since}`,
+    previous: point(last),
+    ...todays[0] ? { firstToday: point(todays[0]) } : {}
+  };
+}
+var branchOf = (root) => tryGit(root, ["rev-parse", "--abbrev-ref", "HEAD"])?.trim() || "HEAD";
+var headOf = (root) => tryGit(root, ["rev-parse", "--short=7", "HEAD"])?.trim() ?? "";
+function recordRun(repoRoot2, counts, mode, now = /* @__PURE__ */ new Date()) {
+  try {
+    const file = trendFile(repoRoot2);
+    const all = readRecords(file);
+    const branch = branchOf(repoRoot2);
+    const trend = computeTrend(all.filter((r) => r.branch === branch && r.mode === mode), counts, now);
+    const { p0, p1, p2, estMinutes } = counts;
+    const rec = { t: now.toISOString(), branch, head: headOf(repoRoot2), mode, p0, p1, p2, estMinutes };
+    mkdirSync2(dirname2(file), { recursive: true });
+    if (all.length + 1 > TREND_MAX_LINES) {
+      writeFileSync2(file, [...all, rec].slice(-TREND_MAX_LINES).map((r) => JSON.stringify(r)).join("\n") + "\n");
+    } else {
+      appendFileSync(file, JSON.stringify(rec) + "\n");
+    }
+    return trend;
+  } catch {
+    return void 0;
+  }
+}
+function readTrend(repoRoot2, mode, now = /* @__PURE__ */ new Date()) {
+  try {
+    const branch = branchOf(repoRoot2);
+    const mine = readRecords(trendFile(repoRoot2)).filter((r) => r.branch === branch && r.mode === mode);
+    const latest = mine.pop();
+    return latest && computeTrend(mine, latest, now);
+  } catch {
+    return void 0;
+  }
+}
+
+// packages/core/src/branches.ts
+import { basename } from "node:path";
+function listWorktrees(repoRoot2) {
+  const out2 = [];
+  for (const line of git(repoRoot2, ["worktree", "list", "--porcelain"]).split(/\r?\n/)) {
+    if (line.startsWith("worktree ")) out2.push({ path: line.slice("worktree ".length) });
+    else if (line.startsWith("branch refs/heads/") && out2.length) out2.at(-1).branch = line.slice("branch refs/heads/".length);
+    else if (line === "bare") out2.pop();
+  }
+  return out2;
+}
+var refs = (text) => text.split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+var isDirty = (path) => (tryGit(path, ["status", "--porcelain"]) ?? "").trim() !== "";
+function rankBranches(rows) {
+  return [...rows].sort((a, b) => Number(!!a.error) - Number(!!b.error) || b.p0 - a.p0 || b.p1 - a.p1 || b.estMinutes - a.estMinutes || a.name.localeCompare(b.name));
+}
+function countsOf(map) {
+  const { p0, p1, p2, estMinutes } = map.summary;
+  const h = map.hunks[0];
+  return { p0, p1, p2, estMinutes, ...h ? { top: { file: h.hunk.file, line: h.hunk.newRange.start, message: h.evidence[0]?.message ?? "" } } : {} };
+}
+async function reviewBranches(repoRoot2, opts = {}) {
+  const limit = opts.limit ?? 20;
+  const base = defaultBranch(repoRoot2);
+  if (!base) throw new RadarError("BASE_NOT_FOUND", "No default branch found, so there is nothing to compare branches against.");
+  const merged = new Set(refs(git(repoRoot2, ["branch", "--merged", base, "--format=%(refname:short)"])));
+  const worktrees = listWorktrees(repoRoot2);
+  const checkedOut = new Map(worktrees.filter((w) => w.branch).map((w) => [w.branch, w]));
+  const candidates = [];
+  for (const name2 of refs(git(repoRoot2, ["for-each-ref", "--sort=-committerdate", "--format=%(refname:short)", "refs/heads"]))) {
+    const wt = checkedOut.get(name2);
+    const dirty = wt ? isDirty(wt.path) : false;
+    if ((name2 === base || merged.has(name2)) && !dirty) continue;
+    candidates.push({ name: name2, worktree: wt, dirty });
+  }
+  for (const wt of worktrees) {
+    if (!wt.branch && isDirty(wt.path)) candidates.push({ name: basename(wt.path), worktree: wt, dirty: true });
+  }
+  const graphFrom = tryGit(repoRoot2, ["rev-parse", "--verify", "--quiet", "HEAD^{commit}"])?.trim();
+  const rows = [];
+  for (const c of candidates.slice(0, limit)) {
+    const row = { name: c.name, ...c.worktree ? { worktree: c.worktree.path } : {}, dirty: c.dirty, p0: 0, p1: 0, p2: 0, estMinutes: 0 };
+    try {
+      const map = c.worktree ? await analyze({ repoRoot: c.worktree.path, workingTree: true }) : await analyze({ repoRoot: repoRoot2, range: `${base}...${c.name}`, importGraphFrom: graphFrom });
+      Object.assign(row, countsOf(map));
+      const trend = c.worktree && readTrend(c.worktree.path, "worktree", opts.now);
+      if (trend) row.trend = trend.line;
+    } catch (e) {
+      row.error = e.message;
+    }
+    rows.push(row);
+  }
+  return { base, branches: rankBranches(rows), skipped: Math.max(0, candidates.length - limit) };
 }
 
 // packages/core/src/reporters/terminal.ts
@@ -14463,6 +14638,23 @@ function renderPrGuide(map, minTier = "P1") {
 
 ${items.join("\n")}
 `;
+}
+
+// packages/core/src/reporters/branches.ts
+function renderBranches(res) {
+  if (res.branches.length === 0) return "No open branches or uncommitted work: nothing to review.\n";
+  const head = ["Branch", "P0", "P1", "min", "Trend", "Top"];
+  const body2 = res.branches.map((b) => {
+    const n = (v) => b.error ? "-" : String(v);
+    const top = b.error ? `error: ${b.error}` : b.top ? `${b.top.file}:${b.top.line} \u2014 ${b.top.message}` : "";
+    return [b.name + (b.dirty ? " *" : ""), n(b.p0), n(b.p1), n(b.estMinutes), b.trend ?? "", top];
+  });
+  const width = head.map((h, i2) => Math.max(h.length, ...body2.map((r) => r[i2].length)));
+  const fmt = (r) => r.map((c, i2) => i2 === r.length - 1 ? c : i2 >= 1 && i2 <= 3 ? c.padStart(width[i2]) : c.padEnd(width[i2])).join("  ").trimEnd();
+  const lines = [fmt(head), ...body2.map(fmt)];
+  if (res.branches.some((b) => b.dirty)) lines.push("* has uncommitted changes");
+  if (res.skipped) lines.push(`${res.skipped} more branches not analysed (raise the limit to include them).`);
+  return lines.join("\n") + "\n";
 }
 
 // packages/core/src/reporters/index.ts
@@ -15803,8 +15995,8 @@ function anchor(source) {
 }
 var date = /* @__PURE__ */ anchor(dateSource);
 function timeSource(args2) {
-  const hhmm = `(?:[01]\\d|2[0-3]):[0-5]\\d`;
-  const regex = typeof args2.precision === "number" ? args2.precision === -1 ? `${hhmm}` : args2.precision === 0 ? `${hhmm}:[0-5]\\d` : `${hhmm}:[0-5]\\d\\.\\d{${args2.precision}}` : args2.seconds ? `${hhmm}:[0-5]\\d(?:\\.\\d+)?` : `${hhmm}(?::[0-5]\\d(?:\\.\\d+)?)?`;
+  const hhmm2 = `(?:[01]\\d|2[0-3]):[0-5]\\d`;
+  const regex = typeof args2.precision === "number" ? args2.precision === -1 ? `${hhmm2}` : args2.precision === 0 ? `${hhmm2}:[0-5]\\d` : `${hhmm2}:[0-5]\\d\\.\\d{${args2.precision}}` : args2.seconds ? `${hhmm2}:[0-5]\\d(?:\\.\\d+)?` : `${hhmm2}(?::[0-5]\\d(?:\\.\\d+)?)?`;
   return regex;
 }
 function time(args2) {
@@ -19198,10 +19390,10 @@ function foldIntersection(json) {
     if (Object.keys(union2).length !== 1)
       return;
     const rest = allOf.filter((m) => m !== union2);
-    const branches = union2[keyword].map((branch) => foldObjects([...rest, branch]));
-    if (branches.some((b) => !b))
+    const branches2 = union2[keyword].map((branch) => foldObjects([...rest, branch]));
+    if (branches2.some((b) => !b))
       return;
-    folded = { [keyword]: branches };
+    folded = { [keyword]: branches2 };
   }
   if (!folded)
     return;
@@ -19913,11 +20105,11 @@ function stringifyKeyNames(bySchema, json, visited) {
     return inlined === def ? json : inlined;
   }
   for (const keyword of ["anyOf", "oneOf"]) {
-    const branches = json[keyword];
-    if (!Array.isArray(branches))
+    const branches2 = json[keyword];
+    if (!Array.isArray(branches2))
       continue;
-    const mapped = branches.map((branch) => stringifyKeyNames(bySchema, branch, visited));
-    if (mapped.some((branch, i2) => branch !== branches[i2]))
+    const mapped = branches2.map((branch) => stringifyKeyNames(bySchema, branch, visited));
+    if (mapped.some((branch, i2) => branch !== branches2[i2]))
       json = { ...json, [keyword]: mapped };
   }
   const types = Array.isArray(json.type) ? json.type : [json.type];
@@ -25276,8 +25468,8 @@ function scanXMcpHeaderDeclarations(inputSchema2) {
     for (const k of NON_REACHABLE_SUBSCHEMA_KEYWORDS) {
       const sub = schema[k];
       if (sub === void 0) continue;
-      const branches = Array.isArray(sub) ? sub : sub !== null && typeof sub === "object" && OBJECT_VALUED_SUBSCHEMA_KEYWORDS.has(k) ? Object.values(sub) : [sub];
-      for (const branch of branches) {
+      const branches2 = Array.isArray(sub) ? sub : sub !== null && typeof sub === "object" && OBJECT_VALUED_SUBSCHEMA_KEYWORDS.has(k) ? Object.values(sub) : [sub];
+      for (const branch of branches2) {
         const fault$1 = visit(branch, [...path, `<${k}>`], false);
         if (fault$1 !== void 0) return fault$1;
       }
@@ -31491,7 +31683,7 @@ var require_contains = /* @__PURE__ */ __commonJSMin(((exports) => {
         const count = gen.let("count", 0);
         validateItems(schValid, () => gen.if(schValid, () => checkLimits(count)));
       }
-      function validateItems(_valid, block) {
+      function validateItems(_valid, block2) {
         gen.forRange("i", 0, len, (i2) => {
           cxt.subschema({
             keyword: "contains",
@@ -31499,7 +31691,7 @@ var require_contains = /* @__PURE__ */ __commonJSMin(((exports) => {
             dataPropType: util_1.Type.Num,
             compositeRule: true
           }, _valid);
-          block();
+          block2();
         });
       }
       function checkLimits(count) {
@@ -33669,8 +33861,8 @@ var require_formats = /* @__PURE__ */ __commonJSMin(((exports) => {
     if (!matches) return false;
     const year = +matches[1];
     const month = +matches[2];
-    const day = +matches[3];
-    return month >= 1 && month <= 12 && day >= 1 && day <= (month === 2 && isLeapYear(year) ? 29 : DAYS[month]);
+    const day2 = +matches[3];
+    return month >= 1 && month <= 12 && day2 >= 1 && day2 <= (month === 2 && isLeapYear(year) ? 29 : DAYS[month]);
   }
   function compareDate(d1, d2) {
     if (!(d1 && d2)) return void 0;
@@ -36060,8 +36252,10 @@ var RANK2 = { P0: 0, P1: 1, P2: 2 };
 var inputSchema = object({
   range: string2().optional().describe("Git range such as main...HEAD. Omit to review this branch plus uncommitted and untracked changes against the default branch."),
   minTier: _enum(TIERS).optional().describe("Lowest tier to include: P0 (must read), P1 (should read, default) or P2 (skim)."),
+  staged: boolean2().optional().describe("Review only staged changes: what `git commit` would record. Cannot be combined with range."),
   path: string2().optional().describe("Path inside the repository. Defaults to the directory the server was started in.")
 });
+var point2 = object({ t: string2(), p0: number2(), p1: number2() });
 var outputSchema = object({
   summary: object({ hunks: number2(), p0: number2(), p1: number2(), p2: number2(), estMinutes: number2() }),
   aiAuthored: object({ likely: boolean2(), reasons: array(string2()) }),
@@ -36073,7 +36267,28 @@ var outputSchema = object({
     startLine: number2(),
     endLine: number2(),
     evidence: array(object({ signal: string2(), message: string2(), weight: number2() }))
-  }))
+  })),
+  trend: object({ line: string2(), previous: point2.optional(), firstToday: point2.optional() }).optional()
+});
+var branchesInput = object({
+  limit: number2().int().min(1).max(50).optional().describe("How many branches to analyse, most recently committed first (default 20)."),
+  path: string2().optional().describe("Path inside the repository. Defaults to the directory the server was started in.")
+});
+var branchesOutput = object({
+  base: string2(),
+  branches: array(object({
+    name: string2(),
+    worktree: string2().optional(),
+    dirty: boolean2(),
+    p0: number2(),
+    p1: number2(),
+    p2: number2(),
+    estMinutes: number2(),
+    top: object({ file: string2(), line: number2(), message: string2() }).optional(),
+    trend: string2().optional(),
+    error: string2().optional()
+  })),
+  skipped: number2()
 });
 function toPayload(map, minTier) {
   const { hunks, p0, p1, p2, estMinutes } = map.summary;
@@ -36097,8 +36312,21 @@ function repoRoot(cwd, path) {
   if (!top) throw new RadarError("NOT_A_REPO", `${dir} is not inside a git repository.`);
   return top;
 }
-function review(cwd, args2) {
-  return analyze({ repoRoot: repoRoot(cwd, args2.path), range: args2.range, workingTree: !args2.range });
+var NO_COMMITS_TEXT = "No commits yet: nothing to review.";
+var EMPTY = {
+  summary: { hunks: 0, p0: 0, p1: 0, p2: 0, estMinutes: 0 },
+  aiAuthored: { likely: false, reasons: [] },
+  warnings: [],
+  hunks: []
+};
+var scope = (a) => a.staged ? "staged changes" : a.range ?? "the working tree and branch";
+async function review(root, args2) {
+  try {
+    return await analyze({ repoRoot: root, range: args2.range, workingTree: !args2.range, staged: args2.staged ? "index" : void 0 });
+  } catch (e) {
+    if (e instanceof RadarError && e.code === "NO_COMMITS") return void 0;
+    throw e;
+  }
 }
 function createMcpServer(cwd) {
   const server = new McpServer({ name: "review-radar", version: VERSION });
@@ -36106,15 +36334,26 @@ function createMcpServer(cwd) {
     "review_changes",
     {
       title: "Review Radar: where will a reviewer look?",
-      description: "Ranks every changed hunk by how much a human reviewer needs to read it (P0 must read, P1 should read, P2 skim), with the evidence behind each score: test gaming (skipped or weakened tests), sensitive code, blast radius, untested changes, dependency bumps. Deterministic, no LLM. Use before opening a PR or after finishing a task.",
+      description: "Ranks every changed hunk by how much a human reviewer needs to read it (P0 must read, P1 should read, P2 skim), with the evidence behind each score: test gaming (skipped or weakened tests), sensitive code, blast radius, untested changes, dependency bumps. Deterministic, no LLM. Use before opening a PR or after finishing a task. Pass staged: true to review only what the next commit would record. Repeated runs report a trend (P0 3 \u2192 1 since 09:12).",
       inputSchema,
       outputSchema
     },
     async (args2) => {
-      const map = await review(cwd, args2);
+      const root = repoRoot(cwd, args2.path);
+      const map = await review(root, args2);
+      if (!map) return { content: [{ type: "text", text: NO_COMMITS_TEXT }], structuredContent: EMPTY };
+      const payload = toPayload(map, args2.minTier ?? "P1");
+      if (!args2.range) {
+        const { p0, p1, p2, estMinutes } = map.summary;
+        const trend = recordRun(root, { p0, p1, p2, estMinutes }, args2.staged ? "staged" : "worktree");
+        if (trend) payload.trend = trend;
+      }
+      const body2 = map.summary.hunks === 0 ? `Nothing to review: no changes in ${scope(args2)}.` : renderTerminal(map, { color: false });
       return {
-        content: [{ type: "text", text: renderTerminal(map, { color: false }) }],
-        structuredContent: toPayload(map, args2.minTier ?? "P1")
+        content: [{ type: "text", text: payload.trend ? `${body2.trimEnd()}
+Trend: ${payload.trend.line}
+` : body2 }],
+        structuredContent: payload
       };
     }
   );
@@ -36126,8 +36365,21 @@ function createMcpServer(cwd) {
       inputSchema
     },
     async (args2) => {
-      const map = await review(cwd, args2);
-      return { content: [{ type: "text", text: renderPrGuide(map, args2.minTier ?? "P1") }] };
+      const map = await review(repoRoot(cwd, args2.path), args2);
+      return { content: [{ type: "text", text: map ? renderPrGuide(map, args2.minTier ?? "P1") : NO_COMMITS_TEXT }] };
+    }
+  );
+  server.registerTool(
+    "review_branches",
+    {
+      title: "Review Radar: which branch needs review first?",
+      description: "Lists local branches not merged into the default branch, plus worktrees with uncommitted work, ranked by P0 then P1 hunks, with each one's riskiest hunk and today's trend. Read-only. Use when the user asks what to review or work on today.",
+      inputSchema: branchesInput,
+      outputSchema: branchesOutput
+    },
+    async (args2) => {
+      const res = await reviewBranches(repoRoot(cwd, args2.path), { limit: args2.limit });
+      return { content: [{ type: "text", text: renderBranches(res) }], structuredContent: res };
     }
   );
   return server;
@@ -36136,9 +36388,68 @@ function startStdio(cwd) {
   return serveStdio(() => createMcpServer(cwd));
 }
 
+// packages/cli/src/hook.ts
+var QUOTED = /"(?:\\.|[^"\\])*"|'[^']*'/g;
+var COMMIT = /\bgit\b[^;&|\n]*?\scommit\b/;
+var STAGES_FIRST = /\bgit\b[^;&|\n]*?\s(?:add|rm|mv)\b/;
+function stagedModeFor(command) {
+  const plain = command.replace(QUOTED, '""');
+  if (STAGES_FIRST.test(plain)) return "all";
+  const m = COMMIT.exec(plain);
+  if (!m) return "index";
+  const args2 = plain.slice(m.index + m[0].length).split(/&&|\|\||[;|\n]/)[0].split(/\s+/);
+  return args2.some((t) => t === "--all" || /^-[A-Za-z]+$/.test(t) && t.includes("a")) ? "all" : "index";
+}
+var where = (f) => f.startLine === f.endLine ? `${f.file}:${f.startLine}` : `${f.file}:${f.startLine}-${f.endLine}`;
+var bullets = (fs2) => fs2.map((f) => `- ${where(f)} \u2014 ${f.message}`).join("\n");
+function warn(fs2) {
+  const first = fs2[0];
+  return {
+    systemMessage: `Review Radar: this commit adds test gaming (${fs2.length} finding${fs2.length === 1 ? "" : "s"}) \u2014 ${first.file}:${first.startLine} ${first.message}`,
+    hookSpecificOutput: {
+      hookEventName: "PreToolUse",
+      additionalContext: `Review Radar found test gaming in the changes being committed:
+${bullets(fs2)}
+Undo it (restore the test or the strict assertion) and fix the code under test, unless the user explicitly asked for it.`
+    }
+  };
+}
+function block(fs2) {
+  return {
+    hookSpecificOutput: {
+      hookEventName: "PreToolUse",
+      permissionDecision: "deny",
+      permissionDecisionReason: `Review Radar blocked this commit: it adds test gaming.
+${bullets(fs2)}
+Undo it and fix the code under test. (Set agentHooks.preCommit: warn in .reviewradar.yml to allow.)`
+    }
+  };
+}
+function preCommit(stdin, io) {
+  try {
+    const input = JSON.parse(stdin);
+    const command = input.tool_input?.command;
+    if (typeof command !== "string" || typeof input.cwd !== "string") return;
+    if (!COMMIT.test(command.replace(QUOTED, '""'))) return;
+    const root = tryGit(input.cwd, ["rev-parse", "--show-toplevel"])?.trim();
+    if (!root) return;
+    const config2 = loadConfig(root);
+    if (config2.agentHooks.preCommit === "off") return;
+    const findings = findTestGaming(root, stagedModeFor(command), config2);
+    if (findings.length === 0) return;
+    io.stdout(`${JSON.stringify(config2.agentHooks.preCommit === "block" ? block(findings) : warn(findings))}
+`);
+  } catch {
+  }
+}
+
 // packages/cli/src/cli.ts
 var HELP = `Usage: review-radar [<base>...<head>] [options]
+       review-radar branches [--limit n] [--format terminal|json]
+                                 Rank open branches and worktrees by what needs review
        review-radar mcp          Start the MCP server (stdio) for coding agents
+       review-radar hook pre-commit
+                                 Claude Code PreToolUse hook: reads the hook JSON on stdin
 
 Shows which hunks of a change need human review, and why.
 With no range: current branch vs the merge-base with main. base...head diffs from
@@ -36152,6 +36463,7 @@ Options:
   --fail-on <tier>   Exit 1 if any hunk is at or above P0 | P1
   --config <file>    Config file (default: .reviewradar.yml)
   --working-tree     Also review uncommitted and untracked changes (no-range mode)
+  --staged           Review only staged changes (what git commit would record)
   --no-cache         Rebuild the import graph
   --no-color         Disable colors
   -v, --version      Print version
@@ -36165,9 +36477,57 @@ function isMainModule(metaUrl, argv1) {
     return false;
   }
 }
+function fail(e, io) {
+  if (e instanceof RadarError && e.code === "NO_COMMITS") {
+    io.stdout(`${e.message}
+`);
+    return 0;
+  }
+  const msg = e instanceof RadarError ? e.message : e.stack ?? String(e);
+  io.stderr(`review-radar: ${msg}
+`);
+  return 2;
+}
+async function branches(argv, io) {
+  let v;
+  try {
+    v = parseArgs({ args: argv, strict: true, options: { limit: { type: "string" }, format: { type: "string", default: "terminal" } } }).values;
+  } catch (e) {
+    io.stderr(`review-radar: ${e.message}
+`);
+    return 2;
+  }
+  const limit = v.limit === void 0 ? 20 : Number(v.limit);
+  if (!Number.isInteger(limit) || limit < 1) {
+    io.stderr("review-radar: --limit must be a positive integer\n");
+    return 2;
+  }
+  if (v.format !== "terminal" && v.format !== "json") {
+    io.stderr("review-radar: branches --format must be terminal or json\n");
+    return 2;
+  }
+  try {
+    const res = await reviewBranches(io.cwd, { limit });
+    io.stdout(v.format === "json" ? `${JSON.stringify(res, null, 2)}
+` : renderBranches(res));
+    return 0;
+  } catch (e) {
+    return fail(e, io);
+  }
+}
 async function main(argv, io) {
   if (argv[0] === "mcp") {
     startStdio(io.cwd);
+    return 0;
+  }
+  if (argv[0] === "branches") return branches(argv.slice(1), io);
+  if (argv[0] === "hook") {
+    if (argv[1] !== "pre-commit") {
+      io.stderr(`review-radar: unknown hook "${argv[1] ?? ""}" (use pre-commit)
+`);
+      return 2;
+    }
+    preCommit(io.stdin ? await io.stdin() : "", io);
     return 0;
   }
   let parsed;
@@ -36185,6 +36545,7 @@ async function main(argv, io) {
         config: { type: "string" },
         "no-cache": { type: "boolean" },
         "working-tree": { type: "boolean" },
+        staged: { type: "boolean" },
         "no-color": { type: "boolean" },
         version: { type: "boolean", short: "v" },
         help: { type: "boolean", short: "h" }
@@ -36217,6 +36578,10 @@ ${HELP}`);
     io.stderr("review-radar: --fail-on must be P0 or P1\n");
     return 2;
   }
+  if (v.staged && (positionals[0] || v["working-tree"])) {
+    io.stderr("review-radar: --staged can't be combined with a range or --working-tree\n");
+    return 2;
+  }
   try {
     const map = await analyze({
       repoRoot: io.cwd,
@@ -36225,26 +36590,32 @@ ${HELP}`);
       lcovPath: v.lcov,
       configPath: v.config,
       useCache: !v["no-cache"],
-      workingTree: v["working-tree"]
+      workingTree: v["working-tree"],
+      staged: v.staged ? "index" : void 0
     });
     const text = render(map, format, { color: !v["no-color"] && !v.out });
-    if (v.out) writeFileSync2(isAbsolute4(v.out) ? v.out : join6(io.cwd, v.out), text);
+    if (v.out) writeFileSync3(isAbsolute5(v.out) ? v.out : join7(io.cwd, v.out), text);
     else io.stdout(text);
     if (failOn === "P0" && map.summary.p0 > 0) return 1;
     if (failOn === "P1" && map.summary.p0 + map.summary.p1 > 0) return 1;
     return 0;
   } catch (e) {
-    const msg = e instanceof RadarError ? e.message : e.stack ?? String(e);
-    io.stderr(`review-radar: ${msg}
-`);
-    return 2;
+    return fail(e, io);
   }
 }
 if (isMainModule(import.meta.url, process.argv[1])) {
   main(process.argv.slice(2), {
     stdout: (s) => process.stdout.write(s),
     stderr: (s) => process.stderr.write(s),
-    cwd: process.cwd()
+    cwd: process.cwd(),
+    stdin: () => new Promise((done) => {
+      if (process.stdin.isTTY) return done("");
+      let s = "";
+      process.stdin.setEncoding("utf8");
+      process.stdin.on("data", (c) => s += c);
+      process.stdin.on("end", () => done(s));
+      process.stdin.on("error", () => done(s));
+    })
   }).then((code) => {
     process.exitCode = code;
   });

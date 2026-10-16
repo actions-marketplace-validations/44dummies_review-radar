@@ -42,7 +42,10 @@ export const DEFAULT_CONFIG: Config = {
   ignore: ['**/dist/**', '**/build/**', '**/vendor/**', '**/*.min.js', 'dist/**', 'build/**', 'vendor/**'],
   churnDays: 90,
   diffusion: { files: 10, dirs: 5 },
+  agentHooks: { preCommit: 'warn' },
 };
+
+const PRE_COMMIT_MODES: readonly string[] = ['warn', 'block', 'off'];
 
 type Partial2<T> = { [K in keyof T]?: T[K] extends object ? (T[K] extends unknown[] ? T[K] : Partial<T[K]>) : T[K] };
 
@@ -59,6 +62,10 @@ export function loadConfig(repoRoot: string, configPath?: string): Config {
     throw new RadarError('BAD_INPUT', `Invalid YAML in ${p}: ${(e as Error).message}`);
   }
   const d = structuredClone(DEFAULT_CONFIG);
+  const preCommit = raw.agentHooks?.preCommit ?? d.agentHooks.preCommit;
+  if (!PRE_COMMIT_MODES.includes(preCommit)) {
+    throw new RadarError('BAD_INPUT', `agentHooks.preCommit must be warn, block or off (got "${String(preCommit)}") in ${p}`);
+  }
   return {
     weights: { ...d.weights, ...(raw.weights ?? {}) },
     tiers: { ...d.tiers, ...(raw.tiers ?? {}) },
@@ -67,6 +74,7 @@ export function loadConfig(repoRoot: string, configPath?: string): Config {
     ignore: [...d.ignore, ...(raw.ignore ?? [])],
     churnDays: raw.churnDays ?? d.churnDays,
     diffusion: { ...d.diffusion, ...(raw.diffusion ?? {}) },
+    agentHooks: { preCommit },
   };
 }
 

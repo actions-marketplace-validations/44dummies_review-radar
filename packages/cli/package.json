@@ -1,6 +1,6 @@
 {
   "name": "review-radar",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Shows which lines of an AI-written PR a human must review, and why. Deterministic, offline, no LLM.",
   "type": "module",
   "bin": {
@@ -38,7 +38,7 @@
   "devDependencies": {
     "@modelcontextprotocol/client": "2.3.1",
     "@modelcontextprotocol/server": "2.3.1",
-    "@review-radar/core": "1.1.0",
+    "@review-radar/core": "1.2.0",
     "zod": "4.6.5"
   }
 }

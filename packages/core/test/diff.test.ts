@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { parseUnifiedDiff, getChangeSet } from '../src/diff';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -78,6 +78,7 @@ describe('parseUnifiedDiff', () => {
 });
 
 describe('getChangeSet', () => {
+  afterEach(() => vi.unstubAllEnvs());
   it('diffs an explicit base..head range', () => {
     const r = makeRepo();
     r.write({ 'src/a.ts': 'export const a = 1;\n' });
@@ -117,7 +118,8 @@ describe('getChangeSet', () => {
     expect(cs.files).toHaveLength(1);
   });
 
-  it('throws BASE_NOT_FOUND with a fetch-depth hint for an unknown base', () => {
+  it('throws BASE_NOT_FOUND with a fetch-depth hint for an unknown base in GitHub Actions', () => {
+    vi.stubEnv('GITHUB_ACTIONS', 'true');
     const r = makeRepo();
     r.write({ 'a.ts': '1\n' });
     r.commit('init');
@@ -129,6 +131,14 @@ describe('getChangeSet', () => {
       expect((e as RadarError).code).toBe('BASE_NOT_FOUND');
       expect((e as RadarError).message).toContain('fetch-depth: 0');
     }
+  });
+
+  it('leaves the GitHub Actions hint out elsewhere', () => {
+    vi.stubEnv('GITHUB_ACTIONS', '');
+    const r = makeRepo();
+    r.write({ 'a.ts': '1\n' });
+    r.commit('init');
+    expect(() => getChangeSet(r.root, 'deadbeef..HEAD')).toThrow(/^Cannot find base commit "deadbeef"\.$/);
   });
 
   it('throws NOT_A_REPO outside git', () => {
@@ -196,5 +206,69 @@ describe('getChangeSet workingTree', () => {
   });
   it('returns no files for a clean tree at the merge-base', () => {
     expect(paths(repo())).toEqual([]);
+  });
+});
+
+describe('repos with no commits', () => {
+  it.each([undefined, { workingTree: true }])('throws NO_COMMITS with no range (%o)', (opts) => {
+    const r = makeRepo();
+    r.write({ 'a.ts': '1\n' });
+    try {
+      getChangeSet(r.root, undefined, opts);
+      expect.unreachable();
+    } catch (e) {
+      expect((e as RadarError).code).toBe('NO_COMMITS');
+      expect((e as RadarError).message).toBe('No commits yet: nothing to review.');
+    }
+  });
+});
+
+describe('getChangeSet staged', () => {
+  function repo() {
+    const r = makeRepo();
+    r.write({ 'src/a.ts': 'export const a = 1;\n', 'src/b.ts': 'export const b = 1;\n', 'src/gone.ts': 'x\n' });
+    r.commit('init');
+    return r;
+  }
+  const paths = (r: ReturnType<typeof repo>, staged: 'index' | 'all') =>
+    getChangeSet(r.root, undefined, { staged }).files.map((f) => f.path).sort();
+
+  it("'index' sees only staged changes", () => {
+    const r = repo();
+    r.write({ 'src/a.ts': 'export const a = 2;\n' });
+    r.git('add', 'src/a.ts');
+    r.write({ 'src/b.ts': 'export const b = 2;\n', 'src/new.ts': 'n\n' });
+    expect(paths(r, 'index')).toEqual(['src/a.ts']);
+  });
+  it("'all' sees staged, unstaged and untracked changes", () => {
+    const r = repo();
+    r.write({ 'src/a.ts': 'export const a = 2;\n' });
+    r.git('add', 'src/a.ts');
+    r.write({ 'src/b.ts': 'export const b = 2;\n', 'src/new.ts': 'n\n' });
+    expect(paths(r, 'all')).toEqual(['src/a.ts', 'src/b.ts', 'src/new.ts']);
+  });
+  it('reports staged additions and deletions with their status', () => {
+    const r = repo();
+    r.write({ 'src/added.ts': 'a\n' });
+    r.git('add', 'src/added.ts');
+    r.git('rm', '-q', 'src/gone.ts');
+    const files = getChangeSet(r.root, undefined, { staged: 'index' }).files;
+    expect(Object.fromEntries(files.map((f) => [f.path, f.status]))).toEqual({ 'src/added.ts': 'added', 'src/gone.ts': 'deleted' });
+  });
+  it('diffs against HEAD, so base and head are both HEAD', () => {
+    const r = repo();
+    const head = r.git('rev-parse', 'HEAD');
+    const cs = getChangeSet(r.root, undefined, { staged: 'index' });
+    expect(cs).toMatchObject({ base: head, head, files: [] });
+  });
+  it('rejects a range combined with staged', () => {
+    const r = repo();
+    expect(() => getChangeSet(r.root, 'main..HEAD', { staged: 'index' })).toThrow("--staged can't be combined with a range.");
+  });
+  it('throws NO_COMMITS before the first commit', () => {
+    const r = makeRepo();
+    r.write({ 'a.ts': '1\n' });
+    r.git('add', 'a.ts');
+    expect(() => getChangeSet(r.root, undefined, { staged: 'index' })).toThrow('No commits yet: nothing to review.');
   });
 });

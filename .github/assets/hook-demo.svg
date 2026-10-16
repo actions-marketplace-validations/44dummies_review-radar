@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="976" height="561" viewBox="0 0 976 561" role="img" aria-label="Claude Code with the Review Radar commit hook refusing a commit that skips a test">
+  <rect width="976" height="561" rx="12" fill="#0d1117"/>
+  <rect x="0.5" y="0.5" width="975" height="560" rx="11.5" fill="none" stroke="#30363d"/>
+  <circle cx="24" cy="22" r="6" fill="#ff5f57"/><circle cx="44" cy="22" r="6" fill="#febc2e"/><circle cx="64" cy="22" r="6" fill="#28c840"/>
+  <text x="488" y="27" text-anchor="middle" fill="#8b949e" font-family="ui-sans-serif, -apple-system, 'Segoe UI', sans-serif" font-size="13">claude — Review Radar commit hook (agentHooks.preCommit: block)</text>
+  <g font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="13.5">
+  <text x="24" y="70" xml:space="preserve"><tspan fill="#8b949e">&gt; </tspan><tspan fill="#e6edf3">Commit the staged changes with the message 'tidy tests'. Don't push.</tspan></text>
+  <text x="24" y="91" xml:space="preserve"></text>
+  <text x="24" y="112" xml:space="preserve"><tspan fill="#7ee787">● </tspan><tspan fill="#e6edf3" font-weight="700">Bash</tspan><tspan fill="#e6edf3">(git commit -m "tidy tests" …)</tspan></text>
+  <text x="24" y="133" xml:space="preserve"><tspan fill="#8b949e">  ⎿ </tspan><tspan fill="#ff7b72">PreToolUse:Bash hook error: </tspan><tspan fill="#ff7b72" font-weight="700">Review Radar blocked this commit: it adds test gaming.</tspan></text>
+  <text x="24" y="154" xml:space="preserve"><tspan fill="#e6edf3">    - test/util.test.js:5 — skips a test (`.skip`/`xit`/`pytest.mark.skip`/`xfail`)</tspan></text>
+  <text x="24" y="175" xml:space="preserve"><tspan fill="#8b949e">    Undo it and fix the code under test. (Set agentHooks.preCommit: warn in .reviewradar.yml to allow.)</tspan></text>
+  <text x="24" y="196" xml:space="preserve"></text>
+  <text x="24" y="217" xml:space="preserve"><tspan fill="#7ee787">● </tspan><tspan fill="#e6edf3" font-weight="700">Bash</tspan><tspan fill="#e6edf3">(git diff --cached -- test/util.test.js)</tspan></text>
+  <text x="24" y="238" xml:space="preserve"><tspan fill="#8b949e">  ⎿ </tspan><tspan fill="#ff7b72">-test('clamp keeps values in range', () =&gt; {</tspan></text>
+  <text x="24" y="259" xml:space="preserve"><tspan fill="#e6edf3">    </tspan><tspan fill="#7ee787">+test.skip('clamp keeps values in range', () =&gt; {</tspan></text>
+  <text x="24" y="280" xml:space="preserve"></text>
+  <text x="24" y="301" xml:space="preserve"><tspan fill="#79c0ff">● </tspan><tspan fill="#e6edf3">I didn't commit — Review Radar's pre-commit hook blocked it, and nothing was committed or pushed.</tspan></text>
+  <text x="24" y="322" xml:space="preserve"></text>
+  <text x="24" y="343" xml:space="preserve"><tspan fill="#e6edf3">  The only staged change turns </tspan><tspan fill="#e3b341">test('clamp keeps values in range')</tspan><tspan fill="#e6edf3"> into </tspan><tspan fill="#e3b341">test.skip(…)</tspan></text>
+  <text x="24" y="364" xml:space="preserve"><tspan fill="#e6edf3">  — the file's only test, so clamp would lose its coverage. …</tspan></text>
+  <text x="24" y="385" xml:space="preserve"></text>
+  <text x="24" y="406" xml:space="preserve"><tspan fill="#e6edf3">  I didn't want to work around the block myself: un-skipping the test edits your staged</tspan></text>
+  <text x="24" y="427" xml:space="preserve"><tspan fill="#e6edf3">  change, and setting </tspan><tspan fill="#e3b341">agentHooks.preCommit: warn</tspan><tspan fill="#e6edf3"> weakens the guard.</tspan></text>
+  <text x="24" y="448" xml:space="preserve"></text>
+  <text x="24" y="469" xml:space="preserve"><tspan fill="#e6edf3">  How would you like to proceed?</tspan></text>
+  <text x="24" y="490" xml:space="preserve"><tspan fill="#e6edf3">    1. </tspan><tspan fill="#e6edf3" font-weight="700">Un-skip the test and commit</tspan></text>
+  <text x="24" y="511" xml:space="preserve"><tspan fill="#e6edf3">    2. </tspan><tspan fill="#e6edf3" font-weight="700">Commit with the skip anyway</tspan><tspan fill="#8b949e"> (set preCommit: warn)</tspan></text>
+  <text x="24" y="532" xml:space="preserve"><tspan fill="#e6edf3">    3. </tspan><tspan fill="#e6edf3" font-weight="700">Keep the skip out of this commit</tspan></text>
+  </g>
+</svg>

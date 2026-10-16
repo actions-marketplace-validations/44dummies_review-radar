@@ -1,7 +1,7 @@
 {
   "name": "review-radar",
   "displayName": "Review Radar",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Before you open a PR, see which hunks a reviewer must read and why. Catches agents skipping or weakening tests. Deterministic, offline, no LLM.",
   "author": { "name": "44dummies", "url": "https://github.com/44dummies" },
   "homepage": "https://github.com/44dummies/review-radar",
